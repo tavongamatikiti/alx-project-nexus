@@ -89,18 +89,15 @@ pip install -r requirements.txt
 ```
 
 4. **Configure environment variables**
-Create a `.env` file in the project root:
+Create a `.env` file in the project root (single Postgres URL):
 ```env
 SECRET_KEY=your-secret-key-here
 DEBUG=True
 DATABASE_URL=postgresql://postgres:password@localhost:5432/ecommerce_db
-
-DB_NAME=ecommerce_db
-DB_USER=postgres
-DB_PASSWORD=yourpassword
-DB_HOST=localhost
-DB_PORT=5432
+REDIS_URL=redis://127.0.0.1:6379/1
 ```
+
+Note: The application uses a single `DATABASE_URL`. The `DB_*` variables are only used by Docker Compose to provision the Postgres container and are not read by Django.
 
 5. **Create PostgreSQL database**
 ```bash
@@ -277,6 +274,11 @@ This starts:
 - Redis cache on port 6379
 - Django application on port 8000
 
+Environment for Docker Compose:
+- Set `DB_NAME`, `DB_USER`, and `DB_PASSWORD` in `.env` for the `db` service (container provisioning only).
+- Set `DATABASE_URL` for Django to point at the `db` host inside the network, for example:
+  - `DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@db:5432/${DB_NAME}`
+
 ### Run migrations in Docker
 
 ```bash
@@ -356,12 +358,12 @@ curl http://127.0.0.1:8000/api/products/?search=laptop
 |----------|-------------|---------|
 | `SECRET_KEY` | Django secret key | Required |
 | `DEBUG` | Debug mode | `False` |
-| `DB_NAME` | PostgreSQL database name | `ecommerce_db` |
-| `DB_USER` | PostgreSQL username | `postgres` |
-| `DB_PASSWORD` | PostgreSQL password | Required |
-| `DB_HOST` | PostgreSQL host | `localhost` |
-| `DB_PORT` | PostgreSQL port | `5432` |
+| `DATABASE_URL` | Single Postgres connection URL (e.g., Supabase) | Required |
 | `REDIS_URL` | Redis connection URL | `redis://127.0.0.1:6379/1` |
+
+Docker Compose note: `DB_NAME`, `DB_USER`, and `DB_PASSWORD` configure only the Postgres container; Django still reads `DATABASE_URL`.
+
+Vercel + Supabase: set `DATABASE_URL` to your Supabase connection (prefer the pooling URL) including TLS, e.g. `?sslmode=require`.
 
 ## Security Features
 
