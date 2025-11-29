@@ -76,20 +76,40 @@ TEMPLATES = [
 WSGI_APPLICATION = 'ecommerce.wsgi.application'
 
 # Enforce a single Postgres URL (e.g., Supabase) with no SQLite fallback
-DATABASE_URL_ENV = os.getenv("DATABASE_URL")
+from dj_database_url import ParseError as _DJParseError
+
+
+def _clean_database_url(raw: str) -> str:
+    if raw is None:
+        return ""
+    # Trim whitespace and newlines
+    cleaned = raw.strip().replace("\n", "").replace("\r", "").strip()
+    # Remove a single pair of wrapping quotes if present
+    if cleaned and cleaned[0] == cleaned[-1] and cleaned[0] in ("'", '"'):
+        cleaned = cleaned[1:-1].strip()
+    return cleaned
+
+
+DATABASE_URL_ENV = _clean_database_url(os.getenv("DATABASE_URL"))
 
 if not DATABASE_URL_ENV:
     raise RuntimeError(
-        "DATABASE_URL not configured. Set a single Postgres URL (e.g., Supabase)."
+        "DATABASE_URL not configured. Set a single Postgres URL (e.g., Supabase) without quotes."
     )
 
-DATABASES = {
-    "default": dj_database_url.parse(
-        DATABASE_URL_ENV,
-        conn_max_age=600,
-        ssl_require=IS_VERCEL,
-    )
-}
+try:
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL_ENV,
+            conn_max_age=600,
+            ssl_require=IS_VERCEL,
+        )
+    }
+except _DJParseError as exc:
+    raise RuntimeError(
+        "Invalid DATABASE_URL. Provide a valid Postgres URL (e.g., Supabase pooling URL) "
+        "without surrounding quotes or whitespace, e.g. postgresql://user:pass@host:6543/db?sslmode=require"
+    ) from exc
 
 # Cache Configuration with Redis
 CACHES = {
