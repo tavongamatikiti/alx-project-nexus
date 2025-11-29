@@ -1,19 +1,32 @@
 # E-Commerce Backend - ALX Project Nexus
 
-Production-ready Django REST API for e-commerce platform built with Django, PostgreSQL, JWT authentication, and comprehensive API documentation.
+Production-ready Django REST API for complete e-commerce platform with shopping cart, checkout, Chapa payment integration, order management, and product reviews.
 
 ## Features
 
+### Core E-Commerce
+- ✅ Complete shopping cart with stock validation
+- ✅ Order management with status tracking
+- ✅ Chapa payment gateway integration (ETB currency)
+- ✅ Discount coupons with flexible validation
+- ✅ Product reviews and ratings (1-5 stars)
+- ✅ Shipping and billing address management
+- ✅ Atomic inventory management (prevents overselling)
+
+### API & Authentication
 - ✅ RESTful API design with Django REST Framework
 - ✅ JWT authentication for secure user management
 - ✅ Product catalog with categories
 - ✅ Advanced filtering, searching, and sorting
 - ✅ Pagination for optimal performance
+- ✅ Auto-generated Swagger/OpenAPI documentation
+
+### Performance & Infrastructure
 - ✅ **Multi-layer Redis caching** (95% faster responses)
 - ✅ Database optimization with strategic indexing
-- ✅ Auto-generated Swagger/OpenAPI documentation
+- ✅ Row-level locking for concurrent safety
 - ✅ Docker support for easy deployment
-- ✅ PostgreSQL database
+- ✅ PostgreSQL database with connection pooling
 - ✅ Admin panel for content management
 - ✅ Automatic cache invalidation with Django signals
 
@@ -35,24 +48,54 @@ Production-ready Django REST API for e-commerce platform built with Django, Post
 ```
 alx-project-nexus/
 ├── ecommerce/              # Django project configuration
-│   ├── settings.py         # Settings with PostgreSQL, DRF, JWT config
+│   ├── settings.py         # Settings with PostgreSQL, DRF, JWT, Redis config
 │   ├── urls.py             # Main URL routing
 │   └── wsgi.py             # WSGI application
 ├── users/                  # User management app
 │   ├── models.py           # Custom User model
 │   ├── serializers.py      # User serializers
-│   ├── views.py            # Authentication views
+│   ├── views.py            # Authentication views (JWT)
 │   └── urls.py             # Auth endpoints
 ├── categories/             # Category management app
-│   ├── models.py           # Category model
+│   ├── models.py           # Category model with caching
 │   ├── serializers.py      # Category serializers
 │   ├── views.py            # Category views
 │   └── admin.py            # Category admin
 ├── products/               # Product management app
-│   ├── models.py           # Product model with indexing
+│   ├── models.py           # Product model with stock tracking
 │   ├── serializers.py      # Product serializers
-│   ├── views.py            # Product ViewSet
+│   ├── views.py            # Product ViewSet with caching
 │   └── admin.py            # Product admin
+├── addresses/              # Address management app
+│   ├── models.py           # Shipping/billing addresses
+│   ├── serializers.py      # Address serializers
+│   ├── views.py            # Address ViewSet
+│   └── admin.py            # Address admin
+├── coupons/                # Discount coupon app
+│   ├── models.py           # Coupon model with validation
+│   ├── serializers.py      # Coupon serializers
+│   ├── views.py            # Coupon ViewSet and validation
+│   └── admin.py            # Coupon admin
+├── cart/                   # Shopping cart app
+│   ├── models.py           # Cart and CartItem models
+│   ├── serializers.py      # Cart serializers
+│   ├── views.py            # Cart operations (add/update/remove)
+│   └── admin.py            # Cart admin
+├── orders/                 # Order management app
+│   ├── models.py           # Order and OrderItem models (UUID keys)
+│   ├── serializers.py      # Order serializers
+│   ├── views.py            # Checkout and order views
+│   └── admin.py            # Order admin
+├── payments/               # Payment processing app
+│   ├── models.py           # Payment model (Chapa integration)
+│   ├── serializers.py      # Payment serializers
+│   ├── views.py            # Payment initiation and verification
+│   └── admin.py            # Payment admin
+├── reviews/                # Product review app
+│   ├── models.py           # Review model with ratings
+│   ├── serializers.py      # Review serializers
+│   ├── views.py            # Review CRUD operations
+│   └── admin.py            # Review admin
 ├── docs/                   # Documentation
 │   └── database_optimization.md
 ├── requirements.txt        # Python dependencies
@@ -95,6 +138,7 @@ SECRET_KEY=your-secret-key-here
 DEBUG=True
 DATABASE_URL=postgresql://postgres:password@localhost:5432/ecommerce_db
 REDIS_URL=redis://127.0.0.1:6379/1
+CHAPA_SECRET_KEY=your-chapa-test-secret-key
 ```
 
 Note: The application uses a single `DATABASE_URL`. The `DB_*` variables are only used by Docker Compose to provision the Postgres container and are not read by Django.
@@ -147,15 +191,51 @@ Download schema: http://127.0.0.1:8000/api/schema/
 - `POST /api/auth/token/refresh/` - Refresh access token
 
 ### Categories
-- `GET /api/categories/` - List all categories
+- `GET /api/categories/` - List all categories (cached)
 
 ### Products
-- `GET /api/products/` - List all products (paginated)
+- `GET /api/products/` - List all products with filtering/search (paginated, cached)
 - `POST /api/products/` - Create a new product (admin)
 - `GET /api/products/{id}/` - Retrieve product details
 - `PUT /api/products/{id}/` - Update product (admin)
 - `PATCH /api/products/{id}/` - Partial update (admin)
 - `DELETE /api/products/{id}/` - Delete product (admin)
+
+### Addresses
+- `GET /api/addresses/` - List user's addresses
+- `POST /api/addresses/` - Create new address
+- `GET /api/addresses/{id}/` - Get address details
+- `PATCH /api/addresses/{id}/` - Update address
+- `DELETE /api/addresses/{id}/` - Delete address
+
+### Coupons
+- `GET /api/coupons/` - List active coupons
+- `POST /api/coupons/validate/` - Validate coupon code for given subtotal
+
+### Shopping Cart
+- `GET /api/cart/` - Get user's cart with items
+- `POST /api/cart/add/` - Add product to cart (with stock validation)
+- `PATCH /api/cart/items/{id}/` - Update cart item quantity
+- `DELETE /api/cart/items/{id}/` - Remove item from cart
+- `DELETE /api/cart/clear/` - Clear entire cart
+
+### Orders
+- `GET /api/orders/` - List user's orders
+- `GET /api/orders/{order_id}/` - Get order details
+- `POST /api/orders/create/` - Create order from cart (checkout)
+- `PATCH /api/orders/{order_id}/update_status/` - Update order status (admin)
+
+### Payments
+- `GET /api/payments/` - List user's payment history
+- `POST /api/payments/initiate/` - Initiate Chapa payment for order
+- `GET/POST /api/payments/verify/{payment_id}/` - Verify payment (Chapa callback)
+
+### Reviews
+- `GET /api/reviews/` - List all reviews (filter by product, rating)
+- `POST /api/reviews/` - Create review for product
+- `GET /api/reviews/{id}/` - Get review details
+- `PATCH /api/reviews/{id}/` - Update own review
+- `DELETE /api/reviews/{id}/` - Delete own review
 
 ### Filtering & Search
 
@@ -360,6 +440,7 @@ curl http://127.0.0.1:8000/api/products/?search=laptop
 | `DEBUG` | Debug mode | `False` |
 | `DATABASE_URL` | Single Postgres connection URL (e.g., Supabase) | Required |
 | `REDIS_URL` | Redis connection URL | `redis://127.0.0.1:6379/1` |
+| `CHAPA_SECRET_KEY` | Chapa payment gateway API key | Required for payments |
 
 Docker Compose note: `DB_NAME`, `DB_USER`, and `DB_PASSWORD` configure only the Postgres container; Django still reads `DATABASE_URL`.
 
@@ -374,12 +455,71 @@ Vercel + Supabase: set `DATABASE_URL` to your Supabase connection (prefer the po
 - SQL injection prevention through ORM
 - XSS protection in templates
 
+## E-Commerce Workflow
+
+### Complete Purchase Flow
+
+1. **Browse & Search** → User discovers products with filtering and search
+2. **Add to Cart** → Products added with automatic stock validation
+3. **Apply Coupon** (optional) → Discount codes validated in real-time
+4. **Manage Addresses** → User sets/selects shipping and billing addresses
+5. **Checkout** → Order created from cart with:
+   - Address validation
+   - Stock checked with database-level locking
+   - Coupon discount applied
+   - Product details snapshotted for order history
+   - Cart cleared atomically
+6. **Payment** → Chapa payment integration:
+   - Payment initiated, checkout URL generated
+   - User completes payment via Chapa
+   - Payment verified via callback
+   - Stock deducted atomically on success
+   - Order status updated to 'confirmed'
+7. **Order Fulfillment** → Admin manages order lifecycle:
+   - processing → shipped → delivered
+8. **Leave Review** → Customer reviews purchased products
+
+### Key Business Features
+
+**Inventory Management**
+- Real-time stock validation at cart operations
+- Row-level locking during checkout prevents race conditions
+- Atomic stock deduction on payment confirmation
+- Prevents overselling through database transactions
+
+**Coupon System**
+- Percentage or fixed-amount discounts
+- Time-bound validity periods
+- Usage limits with tracking
+- Minimum purchase requirements
+- Case-insensitive code matching
+
+**Order Management**
+- UUID-based order IDs for security
+- Complete order history with snapshotted pricing
+- Status tracking through order lifecycle
+- Admin controls for order progression
+
+**Payment Processing**
+- Chapa payment gateway (Ethiopian market - ETB currency)
+- Secure transaction tracking
+- Payment verification callbacks
+- Atomic payment-to-inventory updates
+
+**Review System**
+- 1-5 star ratings with optional comments
+- One review per user per product
+- Owner-only edit/delete permissions
+- Public read access for all users
+
 ## Performance Optimizations
 
 - **Multi-layer Redis caching** (95% faster API responses)
 - **Strategic database indexing** on frequently queried fields
-- **Query optimization** with select_related()
+- **Query optimization** with select_related() and prefetch_related()
 - **Intelligent cache invalidation** using Django signals
+- **Row-level locking** (select_for_update) for inventory operations
+- **Atomic transactions** ensure data consistency
 - **Pagination** to limit response size
 - **Connection pooling** for database and cache efficiency
 - **Static file serving** with WhiteNoise
@@ -388,15 +528,32 @@ Vercel + Supabase: set `DATABASE_URL` to your Supabase connection (prefer the po
 
 ## Project Requirements
 
-This project fulfills all requirements from alx.txt:
-- ✅ CRUD operations for products and categories
-- ✅ User authentication with JWT
-- ✅ Filtering, sorting, and pagination
-- ✅ Database optimization with indexing
-- ✅ Swagger/OpenAPI documentation
-- ✅ Clean, maintainable code
-- ✅ PostgreSQL database
+This project implements a complete e-commerce backend system with:
+
+### Core E-Commerce Features
+- ✅ Complete shopping cart system with stock validation
+- ✅ Order management with checkout workflow
+- ✅ Payment gateway integration (Chapa - Ethiopian market)
+- ✅ Discount coupon system with validation
+- ✅ Product review and rating system
+- ✅ Address management (shipping/billing)
+- ✅ Atomic inventory management (prevents overselling)
+
+### API & Data Management
+- ✅ CRUD operations for all entities
+- ✅ User authentication with JWT (60-min access, 1-day refresh)
+- ✅ Advanced filtering, sorting, and pagination
+- ✅ Database optimization with strategic indexing
+- ✅ Row-level locking for concurrent operations
+- ✅ Swagger/OpenAPI auto-generated documentation
+
+### Performance & Infrastructure
+- ✅ Multi-layer Redis caching (95% improvement)
+- ✅ PostgreSQL database with connection pooling
 - ✅ Docker deployment support
+- ✅ Clean, maintainable code architecture
+- ✅ Comprehensive admin panel
+- ✅ Production-ready with Gunicorn + WhiteNoise
 
 ## Contributing
 

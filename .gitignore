@@ -56,3 +56,6 @@ dmypy.json
 .vercel/
 *.vercel
 .vercel.json
+
+# Documentation (local only)
+docs/erd.md
