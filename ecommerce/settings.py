@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "coupons",
     "cart",
     "orders",
+    "payments",
     "whitenoise.runserver_nostatic",
 ]
 
