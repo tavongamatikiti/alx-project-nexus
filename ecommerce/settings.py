@@ -75,10 +75,19 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ecommerce.wsgi.application'
 
+# Enforce a single Postgres URL (e.g., Supabase) with no SQLite fallback
+DATABASE_URL_ENV = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL_ENV:
+    raise RuntimeError(
+        "DATABASE_URL not configured. Set a single Postgres URL (e.g., Supabase)."
+    )
+
 DATABASES = {
-    'default': dj_database_url.config(
-        default=f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}",
-        conn_max_age=600
+    "default": dj_database_url.parse(
+        DATABASE_URL_ENV,
+        conn_max_age=600,
+        ssl_require=IS_VERCEL,
     )
 }
 
