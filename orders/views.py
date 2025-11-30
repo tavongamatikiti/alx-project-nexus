@@ -7,7 +7,11 @@ from decimal import Decimal
 
 from .models import Order, OrderItem
 from .serializers import OrderSerializer, CreateOrderSerializer
-from .tasks import send_order_confirmation_email, send_order_status_update_email
+try:
+    from .tasks import send_order_confirmation_email, send_order_status_update_email
+    CELERY_AVAILABLE = True
+except ImportError:
+    CELERY_AVAILABLE = False
 from cart.models import Cart
 from addresses.models import Address
 from coupons.models import Coupon
@@ -144,8 +148,9 @@ def create_order(request):
         # Clear cart
         cart.items.all().delete()
 
-    # Send order confirmation email asynchronously
-    send_order_confirmation_email.delay(str(order.order_id))
+    # Send order confirmation email asynchronously if Celery is available
+    if CELERY_AVAILABLE:
+        send_order_confirmation_email.delay(str(order.order_id))
 
     return Response(
         OrderSerializer(order).data,
@@ -199,7 +204,8 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
 
         order.save()
 
-        # Send status update email asynchronously
-        send_order_status_update_email.delay(str(order.order_id), new_status)
+        # Send status update email asynchronously if Celery is available
+        if CELERY_AVAILABLE:
+            send_order_status_update_email.delay(str(order.order_id), new_status)
 
         return Response(OrderSerializer(order).data)
