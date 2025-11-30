@@ -12,6 +12,8 @@ Production-ready Django REST API for complete e-commerce platform with shopping 
 - ✅ Product reviews and ratings (1-5 stars)
 - ✅ Shipping and billing address management
 - ✅ Atomic inventory management (prevents overselling)
+- ✅ Email notifications (order confirmation, payment status)
+- ✅ Asynchronous task processing with Celery
 
 ### API & Authentication
 - ✅ RESTful API design with Django REST Framework
@@ -36,6 +38,9 @@ Production-ready Django REST API for complete e-commerce platform with shopping 
 - **API Framework**: Django REST Framework 3.16.1
 - **Database**: PostgreSQL 15
 - **Cache**: Redis 7 (Alpine)
+- **Task Queue**: Celery 5.5.3 with RabbitMQ (CloudAMQP)
+- **Email**: SMTP (Gmail)
+- **Payment Gateway**: Chapa (Ethiopian market - ETB)
 - **Authentication**: JWT (djangorestframework-simplejwt 5.5.1)
 - **API Documentation**: drf-spectacular 0.29.0
 - **Filtering**: django-filter 25.2
@@ -432,19 +437,108 @@ curl http://127.0.0.1:8000/api/products/?category__id=1
 curl http://127.0.0.1:8000/api/products/?search=laptop
 ```
 
+## Postman Collection
+
+A complete Postman collection with all API endpoints is available in `postman_collection.json`.
+
+### Importing the Collection
+
+1. Open Postman
+2. Click "Import" button
+3. Select `postman_collection.json` from this repository
+4. Collection includes all endpoints with example requests
+
+See `POSTMAN_GUIDE.md` for detailed usage instructions and `API_DOCUMENTATION.md` for complete API reference.
+
+## Email Notifications
+
+The system sends automatic email notifications for:
+
+- **Order Confirmation** - Sent when customer creates an order
+- **Order Status Updates** - Sent when order status changes
+- **Payment Confirmation** - Sent after successful payment
+- **Payment Failed** - Sent if payment fails
+
+### Setup Email Notifications
+
+1. Configure email settings in `.env`:
+```env
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=your-email@gmail.com
+EMAIL_HOST_PASSWORD=your-app-password
+```
+
+2. For Gmail, create an app password:
+   - Go to Google Account settings
+   - Enable 2-factor authentication
+   - Generate an app password
+   - Use the app password in EMAIL_HOST_PASSWORD
+
+3. Start Celery worker:
+```bash
+celery -A ecommerce worker --loglevel=info
+```
+
+### Email Testing
+
+Emails are sent asynchronously via Celery. Monitor the Celery worker logs to see email sending status.
+
 ## Environment Variables
+
+See `.env.example` for all available environment variables. Copy it to `.env` and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+### Required Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `SECRET_KEY` | Django secret key | `django-insecure-your-key` |
+| `DEBUG` | Debug mode | `True` or `False` |
+| `DATABASE_URL` | PostgreSQL connection URL | `postgresql://user:pass@localhost:5432/dbname` |
+
+### Optional Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SECRET_KEY` | Django secret key | Required |
-| `DEBUG` | Debug mode | `False` |
-| `DATABASE_URL` | Single Postgres connection URL (e.g., Supabase) | Required |
 | `REDIS_URL` | Redis connection URL | `redis://127.0.0.1:6379/1` |
-| `CHAPA_SECRET_KEY` | Chapa payment gateway API key | Required for payments |
+| `CHAPA_SECRET_KEY` | Chapa payment API key | Required for payments |
+| `CHAPA_BASE_URL` | Chapa API base URL | `https://api.chapa.co/v1` |
+| `CHAPA_CALLBACK_URL` | Payment verification callback URL | `http://localhost:8000/api/payments/verify/` |
+| `EMAIL_BACKEND` | Email backend | `django.core.mail.backends.smtp.EmailBackend` |
+| `EMAIL_HOST` | SMTP host | `smtp.gmail.com` |
+| `EMAIL_PORT` | SMTP port | `587` |
+| `EMAIL_USE_TLS` | Use TLS | `True` |
+| `EMAIL_HOST_USER` | Email address | Your email |
+| `EMAIL_HOST_PASSWORD` | Email password | App password |
+| `CELERY_BROKER_URL` | Celery broker (RabbitMQ) | `amqps://user:pass@host/vhost` |
+| `CELERY_RESULT_BACKEND` | Celery result backend | `rpc://` |
 
-Docker Compose note: `DB_NAME`, `DB_USER`, and `DB_PASSWORD` configure only the Postgres container; Django still reads `DATABASE_URL`.
+### Docker Compose Variables
 
-Vercel + Supabase: set `DATABASE_URL` to your Supabase connection (prefer the pooling URL) including TLS, e.g. `?sslmode=require`.
+These variables are only used by docker-compose.yml to provision the PostgreSQL container:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DB_NAME` | Database name | `ecommerce_db` |
+| `DB_USER` | Database user | `postgres` |
+| `DB_PASSWORD` | Database password | `postgres` |
+
+**Note**: Django does NOT read these variables. Use `DATABASE_URL` for Django configuration.
+
+### Production Deployment
+
+For production (Vercel + Supabase):
+- Set `DATABASE_URL` to your Supabase pooling connection with SSL: `?sslmode=require`
+- Set `DEBUG=False`
+- Generate a secure `SECRET_KEY`
+- Set `CHAPA_CALLBACK_URL` to your production domain
+- Use production Chapa API keys
 
 ## Security Features
 
