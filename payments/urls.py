@@ -7,6 +7,6 @@ router.register(r'', PaymentViewSet, basename='payment')
 
 urlpatterns = [
     path('initiate/', initiate_payment, name='initiate-payment'),
-    path('verify/<uuid:payment_id>/', verify_payment, name='verify-payment'),
+    path('verify/', verify_payment, name='verify-payment'),
     path('', include(router.urls)),
 ]
