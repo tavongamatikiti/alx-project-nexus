@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from .models import Order, OrderItem
 from .serializers import OrderSerializer, CreateOrderSerializer
+from .tasks import send_order_confirmation_email, send_order_status_update_email
 from cart.models import Cart
 from addresses.models import Address
 from coupons.models import Coupon
@@ -143,6 +144,9 @@ def create_order(request):
         # Clear cart
         cart.items.all().delete()
 
+    # Send order confirmation email asynchronously
+    send_order_confirmation_email.delay(str(order.order_id))
+
     return Response(
         OrderSerializer(order).data,
         status=status.HTTP_201_CREATED
@@ -194,5 +198,8 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             order.confirmed_at = timezone.now()
 
         order.save()
+
+        # Send status update email asynchronously
+        send_order_status_update_email.delay(str(order.order_id), new_status)
 
         return Response(OrderSerializer(order).data)
