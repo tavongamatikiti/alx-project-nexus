@@ -11,12 +11,13 @@ from rest_framework.response import Response
 
 from .models import Payment
 from .serializers import PaymentSerializer, InitiatePaymentSerializer
+from .tasks import send_payment_confirmation_email, send_payment_failed_email
 from orders.models import Order
 from products.models import Product
 
 
 CHAPA_SECRET_KEY = os.getenv('CHAPA_SECRET_KEY')
-CHAPA_BASE_URL = 'https://api.chapa.co/v1'
+CHAPA_BASE_URL = os.getenv('CHAPA_BASE_URL', 'https://api.chapa.co/v1')
 
 
 @api_view(['POST'])
@@ -68,11 +69,11 @@ def initiate_payment(request):
         'first_name': request.user.first_name or request.user.username,
         'last_name': request.user.last_name or '',
         'tx_ref': transaction_id,
-        'callback_url': f"{request.scheme}://{request.get_host()}/api/payments/verify/{payment.payment_id}/",
+        'callback_url': os.getenv('CHAPA_CALLBACK_URL', f"{request.scheme}://{request.get_host()}/api/payments/verify/"),
         'return_url': return_url,
         'customization': {
-            'title': 'E-commerce Order Payment',
-            'description': f'Payment for Order {order.order_id}'
+            'title': 'Order Payment',
+            'description': f'Order {str(order.order_id)[:8]}'
         }
     }
 
@@ -89,7 +90,17 @@ def initiate_payment(request):
             headers=headers,
             timeout=10
         )
-        response.raise_for_status()
+
+        # Check response before raising
+        if response.status_code != 200:
+            error_detail = response.text
+            payment.payment_status = 'failed'
+            payment.save(update_fields=['payment_status'])
+            return Response(
+                {'error': f'Chapa API error: {error_detail}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
         chapa_response = response.json()
 
         if chapa_response.get('status') == 'success':
@@ -123,13 +134,24 @@ def initiate_payment(request):
 
 
 @api_view(['GET', 'POST'])
-def verify_payment(request, payment_id):
+def verify_payment(request):
     """
     Verify payment with Chapa after user completes payment.
     Updates payment status, order status, and deducts inventory stock.
+
+    Chapa sends: GET /api/payments/verify/?tx_ref=<transaction_id>
     """
+    # Get transaction reference from query params (Chapa sends 'tx_ref' or 'trx_ref')
+    tx_ref = request.GET.get('tx_ref') or request.GET.get('trx_ref')
+
+    if not tx_ref:
+        return Response(
+            {'error': 'tx_ref parameter is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     try:
-        payment = Payment.objects.select_related('order').get(payment_id=payment_id)
+        payment = Payment.objects.select_related('order').get(transaction_id=tx_ref)
     except Payment.DoesNotExist:
         return Response(
             {'error': 'Payment not found'},
@@ -191,6 +213,9 @@ def verify_payment(request, payment_id):
                         product.stock -= order_item.quantity
                         product.save(update_fields=['stock'])
 
+                # Send payment confirmation email asynchronously
+                send_payment_confirmation_email.delay(str(payment.payment_id))
+
                 return Response({
                     'status': 'success',
                     'message': 'Payment verified and order confirmed',
@@ -200,6 +225,9 @@ def verify_payment(request, payment_id):
                 # Payment failed on Chapa side
                 payment.payment_status = 'failed'
                 payment.save(update_fields=['payment_status'])
+
+                # Send payment failure email asynchronously
+                send_payment_failed_email.delay(str(payment.payment_id))
 
                 return Response({
                     'status': 'failed',
