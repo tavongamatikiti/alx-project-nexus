@@ -11,7 +11,11 @@ from rest_framework.response import Response
 
 from .models import Payment
 from .serializers import PaymentSerializer, InitiatePaymentSerializer
-from .tasks import send_payment_confirmation_email, send_payment_failed_email
+try:
+    from .tasks import send_payment_confirmation_email, send_payment_failed_email
+    CELERY_AVAILABLE = True
+except ImportError:
+    CELERY_AVAILABLE = False
 from orders.models import Order
 from products.models import Product
 
@@ -213,8 +217,9 @@ def verify_payment(request):
                         product.stock -= order_item.quantity
                         product.save(update_fields=['stock'])
 
-                # Send payment confirmation email asynchronously
-                send_payment_confirmation_email.delay(str(payment.payment_id))
+                # Send payment confirmation email asynchronously if Celery is available
+                if CELERY_AVAILABLE:
+                    send_payment_confirmation_email.delay(str(payment.payment_id))
 
                 return Response({
                     'status': 'success',
@@ -226,8 +231,9 @@ def verify_payment(request):
                 payment.payment_status = 'failed'
                 payment.save(update_fields=['payment_status'])
 
-                # Send payment failure email asynchronously
-                send_payment_failed_email.delay(str(payment.payment_id))
+                # Send payment failure email asynchronously if Celery is available
+                if CELERY_AVAILABLE:
+                    send_payment_failed_email.delay(str(payment.payment_id))
 
                 return Response({
                     'status': 'failed',
